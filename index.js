@@ -6,6 +6,7 @@ const axios = require("axios");
 const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
   appToken: process.env.SLACK_APP_TOKEN,
+  socketMode: true,
 });
 
 // =======================
@@ -107,15 +108,10 @@ const users = [
 const conversations = {};
 
 // =======================
-// ⏰ DAILY JOB SCRIPT (Runs via GitHub Actions)
+// ⏰ DAILY JOB
 // =======================
 
-const runDailyJob = async () => {
-  console.log("⚡ BIGG BOSS daily job starting...");
-  
-  // Need to start the app client to send messages
-  await app.start();
-
+cron.schedule("18 20 * * 1-5", async () => {
   for (const user of users) {
     let question = "";
 
@@ -149,23 +145,115 @@ const runDailyJob = async () => {
         "BIGG BOSS chahte hai aaj ka content output, publishing discipline, aur messaging impact direction. Clear update.";
     }
 
-    console.log(`Sending message to ${user.role} (${user.id})`);
-    try {
-      await app.client.chat.postMessage({
-        channel: user.id,
-        text: question,
-      });
-    } catch (error) {
-       console.error(`Failed to send message to ${user.id}:`, error);
-    }
+    conversations[user.id] = [
+      {
+        role: "system",
+        content: BIGG_BOSS_SYSTEM_PROMPT,
+      },
+      {
+        role: "assistant",
+        content: question,
+      },
+    ];
+
+    await app.client.chat.postMessage({
+      channel: user.id,
+      text: question,
+    });
   }
-  
-  console.log("✅ All messages sent. BIGG BOSS script finished.");
-  process.exit(0); // Exit so GitHub Action completes successfully
-};
+});
+
+// =======================
+// 💬 AI CONVERSATION
+// =======================
+
+app.message(async ({ message, say }) => {
+  if (!message.text) return;
+  if (message.subtype === "bot_message") return;
+
+  const userId = message.user;
+
+  if (!conversations[userId]) {
+    conversations[userId] = [
+      {
+        role: "system",
+        content: BIGG_BOSS_SYSTEM_PROMPT,
+      },
+    ];
+  }
+
+  conversations[userId].push({
+    role: "user",
+    content: message.text,
+  });
+
+  if (conversations[userId].length > 16) {
+    conversations[userId] = [
+      conversations[userId][0],
+      ...conversations[userId].slice(-15),
+    ];
+  }
+
+  try {
+    const response = await axios.post(
+      "https://api.groq.com/openai/v1/chat/completions",
+      {
+        model: "openai/gpt-oss-20b",
+        messages: conversations[userId],
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    let aiReply = response.data.choices[0].message.content;
+
+    const lastBotReply =
+      conversations[userId]
+        .slice()
+        .reverse()
+        .find((m) => m.role === "assistant")?.content || "";
+
+    if (aiReply.trim() === lastBotReply.trim()) {
+      aiReply =
+        "Clarity is missing. Reframe your update with precision.";
+    }
+
+    conversations[userId].push({
+      role: "assistant",
+      content: aiReply,
+    });
+
+    await say(aiReply);
+  } catch (error) {
+    console.error("Groq Error:", error.response?.data || error.message);
+    await say("BIGG BOSS expects clarity. Return prepared.");
+  }
+});
+
+// =======================
+// 🌐 DUMMY WEB SERVER FOR RENDER (FREE TIER)
+// =======================
+const express = require("express");
+const webApp = express();
+const PORT = process.env.PORT || 3000;
+
+webApp.get("/", (req, res) => {
+  res.send("BIGG BOSS bot is alive and running!");
+});
+
+webApp.listen(PORT, () => {
+  console.log(\`🌐 Dummy web server listening on port \${PORT} to satisfy Render's port requirement.\`);
+});
 
 // =======================
 // 🚀 START
 // =======================
 
-runDailyJob();
+(async () => {
+  await app.start();
+  console.log("⚡ BIGG BOSS running intelligently.");
+})();
