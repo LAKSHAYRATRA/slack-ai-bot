@@ -246,7 +246,7 @@ webApp.get("/", (req, res) => {
 });
 
 webApp.listen(PORT, () => {
-  console.log(\`🌐 Dummy web server listening on port \${PORT} to satisfy Render's port requirement.\`);
+  console.log(`🌐 Dummy web server listening on port ${PORT} to satisfy Render's port requirement.`);
 });
 
 // =======================
