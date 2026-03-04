@@ -206,7 +206,7 @@ app.message(async ({ message, say }) => {
           Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
           "Content-Type": "application/json",
         },
-      }
+      },
     );
 
     let aiReply = response.data.choices[0].message.content;
@@ -218,8 +218,7 @@ app.message(async ({ message, say }) => {
         .find((m) => m.role === "assistant")?.content || "";
 
     if (aiReply.trim() === lastBotReply.trim()) {
-      aiReply =
-        "Clarity is missing. Reframe your update with precision.";
+      aiReply = "Clarity is missing. Reframe your update with precision.";
     }
 
     conversations[userId].push({
@@ -232,6 +231,23 @@ app.message(async ({ message, say }) => {
     console.error("Groq Error:", error.response?.data || error.message);
     await say("BIGG BOSS expects clarity. Return prepared.");
   }
+});
+
+// =======================
+// 🌐 DUMMY WEB SERVER FOR RENDER (FREE TIER)
+// =======================
+const express = require("express");
+const webApp = express();
+const PORT = process.env.PORT || 3000;
+
+webApp.get("/", (req, res) => {
+  res.send("BIGG BOSS bot is alive and running!");
+});
+
+webApp.listen(PORT, () => {
+  console.log(
+    `🌐 Dummy web server listening on port ${PORT} to satisfy Render's port requirement.`,
+  );
 });
 
 // =======================
